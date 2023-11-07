@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/raphaelmb/go-toll-calculator/types"
@@ -51,12 +50,11 @@ func (c *KafkaConsumer) readMessageLoop() {
 			logrus.Errorf("json serialization error: %s", err)
 			continue
 		}
-		dist, err := c.calcService.CalculateDistance(data)
+		_, err = c.calcService.CalculateDistance(data)
 		if err != nil {
 			logrus.Errorf("calculation error: %s", err)
 			continue
 		}
-		fmt.Printf("distance %.2f\n", dist)
 	}
 
 }
