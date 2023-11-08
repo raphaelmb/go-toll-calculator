@@ -65,7 +65,7 @@ func (c *KafkaConsumer) readMessageLoop() {
 			OBUID: data.OBUID,
 		}
 		if err := c.aggregatorClient.AggregateInvoice(req); err != nil {
-			logrus.Errorf("aggregate error:", err)
+			logrus.Error("aggregate error:", err)
 			continue
 		}
 	}
