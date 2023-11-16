@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/raphaelmb/go-toll-calculator/types"
+	"github.com/sirupsen/logrus"
 )
 
 const basePrice = 3.15
@@ -29,7 +28,11 @@ func NewInvoiceAggregator(store Storer) Aggregator {
 }
 
 func (i *InvoiceAggregator) AggregateDistance(dist types.Distance) error {
-	fmt.Println("processing and inserting distance in storage", dist)
+	logrus.WithFields(logrus.Fields{
+		"obuid":    dist.OBUID,
+		"distance": dist.Value,
+		"unix":     dist.Unix,
+	}).Info("aggregating distance")
 	return i.Store.Insert(dist)
 }
 
