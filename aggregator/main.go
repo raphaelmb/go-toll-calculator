@@ -2,32 +2,35 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 
+	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/raphaelmb/go-toll-calculator/types"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	httpAddr := flag.String("httpAddr", ":4000", "listen address of the HTTP server")
-	grpcAddr := flag.String("grpcAddr", ":3001", "listen address of the GRPC server")
-	flag.Parse()
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
+	grpcAddr := os.Getenv("AGGREGATOR_GRPC_ENDPOINT")
+	httpAddr := os.Getenv("AGGREGATOR_HTTP_ENDPOINT")
 
-	store := NewMemoryStore()
+	store := makeStore()
 	svc := NewInvoiceAggregator(store)
 	svc = NewMetricsMiddleware(svc)
 	svc = NewLogMiddleware(svc)
 
 	go func() {
-		log.Fatal(makeGRPCTransport(*grpcAddr, svc))
+		log.Fatal(makeGRPCTransport(grpcAddr, svc))
 	}()
-	log.Fatal(makeHTTPTransport(*httpAddr, svc))
+	log.Fatal(makeHTTPTransport(httpAddr, svc))
 }
 
 func makeGRPCTransport(listenAddr string, svc Aggregator) error {
@@ -52,6 +55,10 @@ func makeHTTPTransport(listenAddr string, svc Aggregator) error {
 
 func handleGetInvoice(svc Aggregator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "method not supported"})
+			return
+		}
 		obuIDStr := r.URL.Query().Get("obu")
 		if obuIDStr == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing OBU ID"})

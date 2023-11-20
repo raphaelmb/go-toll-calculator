@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/raphaelmb/go-toll-calculator/types"
 )
@@ -13,6 +15,17 @@ type MemoryStore struct {
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		data: make(map[int]float64),
+	}
+}
+
+func makeStore() Storer {
+	storeType := os.Getenv("AGGREGATOR_STORE_TYPE")
+	switch storeType {
+	case "memory":
+		return NewMemoryStore()
+	default:
+		log.Fatalf("invalid store type give: %s", storeType)
+		return nil
 	}
 }
 
