@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,54 +45,17 @@ func makeGRPCTransport(listenAddr string, svc Aggregator) error {
 }
 
 func makeHTTPTransport(listenAddr string, svc Aggregator) error {
-	fmt.Println("HTTP transport running on port", listenAddr)
-	http.HandleFunc("/aggregate", handleAggregate(svc))
-	http.HandleFunc("/invoice", handleGetInvoice(svc))
+	var (
+		aggMetricHandler = NewHTTPMetricHandler("aggregate")
+		invMetricHandler = NewHTTPMetricHandler("invoice")
+		aggHandler       = makeHTTPHandlerFunc(aggMetricHandler.instrument(handleAggregate(svc)))
+		invoiceHandler   = makeHTTPHandlerFunc(invMetricHandler.instrument(handleGetInvoice(svc)))
+	)
+	http.HandleFunc("/invoice", invoiceHandler)
+	http.HandleFunc("/aggregate", aggHandler)
 	http.Handle("/metrics", promhttp.Handler())
+	fmt.Println("HTTP transport running on port", listenAddr)
 	return http.ListenAndServe(listenAddr, nil)
-}
-
-func handleGetInvoice(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "method not supported"})
-			return
-		}
-		obuIDStr := r.URL.Query().Get("obu")
-		if obuIDStr == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing OBU ID"})
-			return
-		}
-		obuID, err := strconv.Atoi(obuIDStr)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid OBU ID"})
-			return
-		}
-		invoice, err := svc.CalculateInvoice(obuID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, invoice)
-	}
-}
-
-func handleAggregate(svc Aggregator) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "method not supported"})
-			return
-		}
-		var distance types.Distance
-		if err := json.NewDecoder(r.Body).Decode(&distance); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		if err := svc.AggregateDistance(distance); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) error {
