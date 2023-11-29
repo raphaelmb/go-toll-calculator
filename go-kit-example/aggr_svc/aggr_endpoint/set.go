@@ -2,15 +2,44 @@ package aggrendpoint
 
 import (
 	"context"
+	"time"
 
+	"github.com/go-kit/kit/circuitbreaker"
 	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/ratelimit"
+	"github.com/go-kit/log"
 	aggrservice "github.com/raphaelmb/go-toll-calculator/go-kit-example/aggr_svc/aggr_service"
 	"github.com/raphaelmb/go-toll-calculator/types"
+	"github.com/sony/gobreaker"
+	"golang.org/x/time/rate"
 )
 
 type Set struct {
 	AggregateEndpoint endpoint.Endpoint
 	CalculateEndpoint endpoint.Endpoint
+}
+
+func New(svc aggrservice.Service, logger log.Logger) Set {
+	var aggregateEndpoint endpoint.Endpoint
+	{
+		aggregateEndpoint = MakeAggregateEndpoint(svc)
+		aggregateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 1))(aggregateEndpoint)
+		aggregateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(aggregateEndpoint)
+		// aggregateEndpoint = LoggingMiddleware(log.With(logger, "method", "Sum"))(aggregateEndpoint)
+		// aggregateEndpoint = InstrumentingMiddleware(duration.With("method", "Sum"))(aggregateEndpoint)
+	}
+	var calculateEndpoint endpoint.Endpoint
+	{
+		calculateEndpoint = MakeConcatEndpoint(svc)
+		calculateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Limit(1), 100))(calculateEndpoint)
+		calculateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(calculateEndpoint)
+		// calculateEndpoint = LoggingMiddleware(log.With(logger, "method", "Concat"))(calculateEndpoint)
+		// calculateEndpoint = InstrumentingMiddleware(duration.With("method", "Concat"))(calculateEndpoint)
+	}
+	return Set{
+		AggregateEndpoint: aggregateEndpoint,
+		CalculateEndpoint: calculateEndpoint,
+	}
 }
 
 type AggregateRequest struct {

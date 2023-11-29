@@ -45,7 +45,7 @@ func (svc *BasicService) Calculate(_ context.Context, id int) (*types.Invoice, e
 	return invoice, nil
 }
 
-func NewAggregatorService() Service {
+func New() Service {
 	var svc Service
 	{
 		svc = newBasicService(NewMemoryStore())
