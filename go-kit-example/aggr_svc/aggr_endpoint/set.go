@@ -6,8 +6,10 @@ import (
 
 	"github.com/go-kit/kit/circuitbreaker"
 	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-kit/kit/ratelimit"
 	"github.com/go-kit/log"
+	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	aggrservice "github.com/raphaelmb/go-toll-calculator/go-kit-example/aggr_svc/aggr_service"
 	"github.com/raphaelmb/go-toll-calculator/types"
 	"github.com/sony/gobreaker"
@@ -20,21 +22,28 @@ type Set struct {
 }
 
 func New(svc aggrservice.Service, logger log.Logger) Set {
+	duration := prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
+		Namespace: "toll_calculator",
+		Subsystem: "aggservice",
+		Name:      "request_duration_seconds",
+		Help:      "Request duration is seconds",
+	}, []string{"method", "success"})
+
 	var aggregateEndpoint endpoint.Endpoint
 	{
 		aggregateEndpoint = MakeAggregateEndpoint(svc)
 		aggregateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 1))(aggregateEndpoint)
 		aggregateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(aggregateEndpoint)
-		// aggregateEndpoint = LoggingMiddleware(log.With(logger, "method", "Sum"))(aggregateEndpoint)
-		// aggregateEndpoint = InstrumentingMiddleware(duration.With("method", "Sum"))(aggregateEndpoint)
+		aggregateEndpoint = LoggingMiddleware(log.With(logger, "method", "Aggregate"))(aggregateEndpoint)
+		aggregateEndpoint = InstrumentingMiddleware(duration.With("method", "Aggregate"))(aggregateEndpoint)
 	}
 	var calculateEndpoint endpoint.Endpoint
 	{
 		calculateEndpoint = MakeConcatEndpoint(svc)
 		calculateEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Limit(1), 100))(calculateEndpoint)
 		calculateEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(calculateEndpoint)
-		// calculateEndpoint = LoggingMiddleware(log.With(logger, "method", "Concat"))(calculateEndpoint)
-		// calculateEndpoint = InstrumentingMiddleware(duration.With("method", "Concat"))(calculateEndpoint)
+		calculateEndpoint = LoggingMiddleware(log.With(logger, "method", "Calculate"))(calculateEndpoint)
+		calculateEndpoint = InstrumentingMiddleware(duration.With("method", "Calculate"))(calculateEndpoint)
 	}
 	return Set{
 		AggregateEndpoint: aggregateEndpoint,

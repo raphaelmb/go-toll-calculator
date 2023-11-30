@@ -3,6 +3,7 @@ package aggrservice
 import (
 	"context"
 
+	"github.com/go-kit/log"
 	"github.com/raphaelmb/go-toll-calculator/types"
 )
 
@@ -45,11 +46,11 @@ func (svc *BasicService) Calculate(_ context.Context, id int) (*types.Invoice, e
 	return invoice, nil
 }
 
-func New() Service {
+func New(logger log.Logger) Service {
 	var svc Service
 	{
 		svc = newBasicService(NewMemoryStore())
-		svc = newLoggingMiddelware()(svc)
+		svc = newLoggingMiddelware(logger)(svc)
 		svc = newinstrumentationMiddelware()(svc)
 	}
 	return svc

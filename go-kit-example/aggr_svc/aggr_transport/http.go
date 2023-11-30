@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -76,7 +75,7 @@ func NewHTTPClient(instance string, logger log.Logger) (aggrservice.Service, err
 }
 
 func errorEncoder(ctx context.Context, err error, w http.ResponseWriter) {
-	fmt.Println("this is coming from the error encoder", err)
+	// fmt.Println("this is coming from the error encoder", err)
 }
 
 func NewHTTPHandler(endpoints aggrendpoint.Set, logger log.Logger) http.Handler {
